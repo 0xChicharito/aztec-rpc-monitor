@@ -115,43 +115,56 @@ done
 # Step 3: RPC Configuration
 print_step "STEP 3: RPC Configuration"
 
-echo "Please provide your RPC endpoints:"
-echo ""
-
-# Show current value if exists
+# Check for existing values *first*
 CURRENT_ETH_RPC=$(grep "^ETHEREUM_RPC_URL=" .env 2>/dev/null | cut -d '=' -f2)
-if [ -n "$CURRENT_ETH_RPC" ]; then
-    echo -e "${YELLOW}Current Ethereum RPC:${NC} $CURRENT_ETH_RPC"
-fi
-
-echo "Enter Ethereum RPC URL:"
-read -r ETH_RPC
-
-if [ -n "$ETH_RPC" ]; then
-    sed -i '/^ETHEREUM_RPC_URL=/d' .env 2>/dev/null || true
-    echo "ETHEREUM_RPC_URL=$ETH_RPC" >> .env
-    print_success "Ethereum RPC saved: $ETH_RPC"
-elif [ -n "$CURRENT_ETH_RPC" ]; then
-    print_success "Keeping current Ethereum RPC"
-fi
-
-echo ""
-
-# Beacon
 CURRENT_BEACON=$(grep "^CONSENSUS_BEACON_URL=" .env 2>/dev/null | cut -d '=' -f2)
-if [ -n "$CURRENT_BEACON" ]; then
-    echo -e "${YELLOW}Current Beacon:${NC} $CURRENT_BEACON"
-fi
 
-echo "Enter Consensus Beacon URL:"
-read -r BEACON_URL
+# Check if BOTH are set
+if [ -n "$CURRENT_ETH_RPC" ] && [ -n "$CURRENT_BEACON" ]; then
+    echo "Primary RPC endpoints are already configured:"
+    print_success "Ethereum RPC: $CURRENT_ETH_RPC"
+    print_success "Consensus Beacon: $CURRENT_BEACON"
+    echo "Skipping Step 3."
+else
+    # At least one is missing, so run the full interactive setup
+    echo "Please provide your RPC endpoints:"
+    echo ""
 
-if [ -n "$BEACON_URL" ]; then
-    sed -i '/^CONSENSUS_BEACON_URL=/d' .env 2>/dev/null || true
-    echo "CONSENSUS_BEACON_URL=$BEACON_URL" >> .env
-    print_success "Beacon saved: $BEACON_URL"
-elif [ -n "$CURRENT_BEACON" ]; then
-    print_success "Keeping current Beacon"
+    # Ethereum RPC Part
+    if [ -n "$CURRENT_ETH_RPC" ]; then
+        echo -e "${YELLOW}Current Ethereum RPC:${NC} $CURRENT_ETH_RPC"
+    fi
+    echo "Enter Ethereum RPC URL:"
+    read -r ETH_RPC
+
+    if [ -n "$ETH_RPC" ]; then
+        sed -i '/^ETHEREUM_RPC_URL=/d' .env 2>/dev/null || true
+        echo "ETHEREUM_RPC_URL=$ETH_RPC" >> .env
+        print_success "Ethereum RPC saved: $ETH_RPC"
+    elif [ -n "$CURRENT_ETH_RPC" ]; then
+        print_success "Keeping current Ethereum RPC"
+    else
+        print_warning "No Ethereum RPC was set."
+    fi
+
+    echo ""
+
+    # Beacon Part
+    if [ -n "$CURRENT_BEACON" ]; then
+        echo -e "${YELLOW}Current Beacon:${NC} $CURRENT_BEACON"
+    fi
+    echo "Enter Consensus Beacon URL:"
+    read -r BEACON_URL
+
+    if [ -n "$BEACON_URL" ]; then
+        sed -i '/^CONSENSUS_BEACON_URL=/d' .env 2>/dev/null || true
+        echo "CONSENSUS_BEACON_URL=$BEACON_URL" >> .env
+        print_success "Beacon saved: $BEACON_URL"
+    elif [ -n "$CURRENT_BEACON" ]; then
+        print_success "Keeping current Beacon"
+    else
+        print_warning "No Consensus Beacon was set."
+    fi
 fi
 
 # Step 4: Backup RPC Configuration

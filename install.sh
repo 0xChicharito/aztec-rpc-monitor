@@ -30,8 +30,12 @@ echo -e "${BLUE}Installation directory:${NC} $INSTALL_DIR"
 echo ""
 
 # Function to print status
-print_status() {
-    echo -e "${BLUE}[$(date '+%H:%M:%S')]${NC} $1"
+print_step() {
+    echo ""
+    echo -e "${CYAN}═══════════════════════════════════════════════════════════${NC}"
+    echo -e "${BOLD}$1${NC}"
+    echo -e "${CYAN}═══════════════════════════════════════════════════════════${NC}"
+    echo ""
 }
 
 print_success() {
@@ -46,12 +50,8 @@ print_warning() {
     echo -e "${YELLOW}⚠${NC} $1"
 }
 
-print_step() {
-    echo ""
-    echo -e "${CYAN}═══════════════════════════════════════════════════════════${NC}"
-    echo -e "${BOLD}$1${NC}"
-    echo -e "${CYAN}═══════════════════════════════════════════════════════════${NC}"
-    echo ""
+print_status() {
+    echo -e "${BLUE}[$(date '+%H:%M:%S')]${NC} $1"
 }
 
 # Step 1: Pre-flight checks
@@ -80,7 +80,7 @@ if [ -f "docker-compose.yml" ] || [ -f "docker-compose.yaml" ]; then
     print_success "Docker Compose file detected"
 else
     DOCKER_COMPOSE_EXISTS=false
-    print_warning "No Docker Compose file found (container restart disabled)"
+    print_warning "No Docker Compose file found"
 fi
 
 # Check/create .env
@@ -116,270 +116,236 @@ for file in "${FILES[@]}"; do
     fi
 done
 
-# Step 3: Interactive Configuration
+# Step 3: RPC Configuration
 print_step "STEP 3: RPC Configuration"
 
-echo -e "${BOLD}Please provide your RPC endpoints:${NC}"
-echo ""
-
-# Ethereum RPC
+# Check existing values
 CURRENT_ETH_RPC=$(grep "^ETHEREUM_RPC_URL=" .env 2>/dev/null | cut -d '=' -f2)
-if [ -n "$CURRENT_ETH_RPC" ]; then
-    echo -e "${YELLOW}Current Ethereum RPC:${NC} $CURRENT_ETH_RPC"
-    read -p "Keep current value? (y/n): " -n 1 -r
-    echo ""
-    if [[ $REPLY =~ ^[Nn]$ ]]; then
-        CURRENT_ETH_RPC=""
-    fi
-fi
-
-if [ -z "$CURRENT_ETH_RPC" ]; then
-    echo -e "${CYAN}Enter your Ethereum RPC URL:${NC}"
-    read -p "> " ETH_RPC
-    if [ -n "$ETH_RPC" ]; then
-        sed -i '/^ETHEREUM_RPC_URL=/d' .env 2>/dev/null || true
-        echo "ETHEREUM_RPC_URL=$ETH_RPC" >> .env
-        print_success "Ethereum RPC saved"
-    fi
-fi
-
-echo ""
-
-# Consensus Beacon
 CURRENT_BEACON=$(grep "^CONSENSUS_BEACON_URL=" .env 2>/dev/null | cut -d '=' -f2)
-if [ -n "$CURRENT_BEACON" ]; then
-    echo -e "${YELLOW}Current Consensus Beacon:${NC} $CURRENT_BEACON"
-    read -p "Keep current value? (y/n): " -n 1 -r
-    echo ""
-    if [[ $REPLY =~ ^[Nn]$ ]]; then
-        CURRENT_BEACON=""
-    fi
-fi
 
-if [ -z "$CURRENT_BEACON" ]; then
-    echo -e "${CYAN}Enter your Consensus Beacon URL:${NC}"
-    read -p "> " BEACON_URL
-    if [ -n "$BEACON_URL" ]; then
-        sed -i '/^CONSENSUS_BEACON_URL=/d' .env 2>/dev/null || true
-        echo "CONSENSUS_BEACON_URL=$BEACON_URL" >> .env
-        print_success "Consensus Beacon saved"
+if [ -n "$CURRENT_ETH_RPC" ] && [ -n "$CURRENT_BEACON" ]; then
+    echo "Current RPC configuration:"
+    echo "  • Ethereum RPC: $CURRENT_ETH_RPC"
+    echo "  • Beacon: $CURRENT_BEACON"
+    echo ""
+    print_success "RPC endpoints already configured"
+else
+    echo "Please provide your RPC endpoints:"
+    echo ""
+    
+    if [ -z "$CURRENT_ETH_RPC" ]; then
+        echo "Enter your Ethereum RPC URL:"
+        read -r ETH_RPC
+        if [ -n "$ETH_RPC" ]; then
+            echo "ETHEREUM_RPC_URL=$ETH_RPC" >> .env
+            print_success "Ethereum RPC saved"
+        fi
+    fi
+    
+    if [ -z "$CURRENT_BEACON" ]; then
+        echo ""
+        echo "Enter your Consensus Beacon URL:"
+        read -r BEACON_URL
+        if [ -n "$BEACON_URL" ]; then
+            echo "CONSENSUS_BEACON_URL=$BEACON_URL" >> .env
+            print_success "Consensus Beacon saved"
+        fi
     fi
 fi
 
 # Step 4: Backup RPC Configuration
 print_step "STEP 4: Backup RPC Configuration"
 
-echo -e "${BOLD}Configure backup RPC endpoints:${NC}"
-echo ""
-
-# Backup Ethereum RPCs
 CURRENT_BACKUP_ETH=$(grep "^BACKUP_ETHEREUM_RPCS=" .env 2>/dev/null | cut -d '=' -f2)
-if [ -n "$CURRENT_BACKUP_ETH" ]; then
-    echo -e "${YELLOW}Current backup Ethereum RPCs:${NC}"
-    echo "$CURRENT_BACKUP_ETH" | tr ',' '\n' | sed 's/^/  - /'
-    echo ""
-    read -p "Keep current values? (y/n): " -n 1 -r
-    echo ""
-    if [[ $REPLY =~ ^[Nn]$ ]]; then
-        CURRENT_BACKUP_ETH=""
-    fi
-fi
-
-if [ -z "$CURRENT_BACKUP_ETH" ]; then
-    echo -e "${CYAN}Enter backup Ethereum RPC URLs (comma-separated):${NC}"
-    echo -e "${YELLOW}Example: https://eth.llamarpc.com,https://rpc.ankr.com/eth${NC}"
-    echo -e "${YELLOW}Press Enter to use defaults${NC}"
-    read -p "> " BACKUP_ETH
-    if [ -z "$BACKUP_ETH" ]; then
-        BACKUP_ETH="https://eth.llamarpc.com,https://rpc.ankr.com/eth,https://eth.drpc.org,https://ethereum.publicnode.com"
-        print_warning "Using default backup RPCs"
-    fi
-    sed -i '/^BACKUP_ETHEREUM_RPCS=/d' .env 2>/dev/null || true
-    echo "BACKUP_ETHEREUM_RPCS=$BACKUP_ETH" >> .env
-    print_success "Backup Ethereum RPCs saved"
-fi
-
-echo ""
-
-# Backup Beacon URLs
 CURRENT_BACKUP_BEACON=$(grep "^BACKUP_BEACON_URLS=" .env 2>/dev/null | cut -d '=' -f2)
-if [ -n "$CURRENT_BACKUP_BEACON" ]; then
-    echo -e "${YELLOW}Current backup Beacon URLs:${NC}"
-    echo "$CURRENT_BACKUP_BEACON" | tr ',' '\n' | sed 's/^/  - /'
-    echo ""
-    read -p "Keep current values? (y/n): " -n 1 -r
-    echo ""
-    if [[ $REPLY =~ ^[Nn]$ ]]; then
-        CURRENT_BACKUP_BEACON=""
-    fi
-fi
 
-if [ -z "$CURRENT_BACKUP_BEACON" ]; then
-    echo -e "${CYAN}Enter backup Beacon URLs (comma-separated):${NC}"
-    echo -e "${YELLOW}Example: https://ethereum-beacon-api.publicnode.com${NC}"
-    echo -e "${YELLOW}Press Enter to use defaults${NC}"
-    read -p "> " BACKUP_BEACON
-    if [ -z "$BACKUP_BEACON" ]; then
-        BACKUP_BEACON="https://ethereum-beacon-api.publicnode.com,https://beaconstate.ethstaker.cc"
-        print_warning "Using default backup Beacon URLs"
+if [ -n "$CURRENT_BACKUP_ETH" ] && [ -n "$CURRENT_BACKUP_BEACON" ]; then
+    echo "Current backup configuration:"
+    echo "  • Backup Ethereum RPCs: $(echo $CURRENT_BACKUP_ETH | tr ',' ' ')"
+    echo "  • Backup Beacon URLs: $(echo $CURRENT_BACKUP_BEACON | tr ',' ' ')"
+    echo ""
+    print_success "Backup RPCs already configured"
+else
+    echo "Configure backup RPC endpoints:"
+    echo ""
+    
+    if [ -z "$CURRENT_BACKUP_ETH" ]; then
+        echo "Enter backup Ethereum RPC URLs (comma-separated):"
+        echo "Example: https://eth.llamarpc.com,https://rpc.ankr.com/eth"
+        echo "Or press Enter to use defaults"
+        read -r BACKUP_ETH
+        if [ -z "$BACKUP_ETH" ]; then
+            BACKUP_ETH="https://eth.llamarpc.com,https://rpc.ankr.com/eth,https://eth.drpc.org,https://ethereum.publicnode.com"
+        fi
+        echo "BACKUP_ETHEREUM_RPCS=$BACKUP_ETH" >> .env
+        print_success "Backup Ethereum RPCs saved"
     fi
-    sed -i '/^BACKUP_BEACON_URLS=/d' .env 2>/dev/null || true
-    echo "BACKUP_BEACON_URLS=$BACKUP_BEACON" >> .env
-    print_success "Backup Beacon URLs saved"
+    
+    if [ -z "$CURRENT_BACKUP_BEACON" ]; then
+        echo ""
+        echo "Enter backup Beacon URLs (comma-separated):"
+        echo "Or press Enter to use defaults"
+        read -r BACKUP_BEACON
+        if [ -z "$BACKUP_BEACON" ]; then
+            BACKUP_BEACON="https://ethereum-beacon-api.publicnode.com,https://beaconstate.ethstaker.cc"
+        fi
+        echo "BACKUP_BEACON_URLS=$BACKUP_BEACON" >> .env
+        print_success "Backup Beacon URLs saved"
+    fi
 fi
 
 # Step 5: Telegram Configuration
 print_step "STEP 5: Telegram Notification (Optional)"
 
-echo -e "${BOLD}Setup Telegram notifications for RPC alerts:${NC}"
-echo ""
+CURRENT_BOT_TOKEN=$(grep "^TELEGRAM_BOT_TOKEN=" .env 2>/dev/null | cut -d '=' -f2)
+CURRENT_CHAT_ID=$(grep "^TELEGRAM_CHAT_ID=" .env 2>/dev/null | cut -d '=' -f2)
 
-read -p "Do you want to enable Telegram notifications? (y/n): " -n 1 -r
-echo ""
-
-if [[ $REPLY =~ ^[Yy]$ ]]; then
-    echo ""
-    echo -e "${CYAN}To setup Telegram:${NC}"
-    echo "  1. Open Telegram and search for @BotFather"
-    echo "  2. Send: /newbot and follow instructions"
-    echo "  3. Copy your bot token"
-    echo "  4. Search for @userinfobot to get your Chat ID"
-    echo ""
-    
-    echo -e "${CYAN}Enter your Telegram Bot Token:${NC}"
-    read -p "> " BOT_TOKEN
-    
-    echo -e "${CYAN}Enter your Telegram Chat ID:${NC}"
-    read -p "> " CHAT_ID
-    
-    if [ -n "$BOT_TOKEN" ] && [ -n "$CHAT_ID" ]; then
-        sed -i '/^TELEGRAM_BOT_TOKEN=/d' .env 2>/dev/null || true
-        sed -i '/^TELEGRAM_CHAT_ID=/d' .env 2>/dev/null || true
-        echo "TELEGRAM_BOT_TOKEN=$BOT_TOKEN" >> .env
-        echo "TELEGRAM_CHAT_ID=$CHAT_ID" >> .env
-        print_success "Telegram configuration saved"
-        
-        # Test Telegram
-        echo ""
-        read -p "Test Telegram notification now? (y/n): " -n 1 -r
-        echo ""
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
-            TEST_MSG="✅ RPC Health Check Monitor configured successfully!"
-            RESPONSE=$(curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
-                -d chat_id="${CHAT_ID}" \
-                -d text="${TEST_MSG}")
-            
-            if echo "$RESPONSE" | grep -q '"ok":true'; then
-                print_success "Telegram test message sent successfully!"
-            else
-                print_error "Failed to send test message. Please check your credentials."
-            fi
-        fi
-    fi
+if [ -n "$CURRENT_BOT_TOKEN" ] && [ -n "$CURRENT_CHAT_ID" ]; then
+    echo "Telegram notifications already configured"
+    print_success "Telegram is enabled"
 else
-    print_warning "Telegram notifications disabled"
-fi
-
-# Step 6: Docker Compose Restart Configuration
-if [ "$DOCKER_COMPOSE_EXISTS" = true ]; then
-    print_step "STEP 6: Docker Compose Restart Configuration"
-    
-    echo -e "${BOLD}Enable automatic Docker Compose restart on RPC failure?${NC}"
+    echo "Setup Telegram notifications for RPC alerts"
     echo ""
-    echo "When RPC fails and switches to backup, the script can restart"
-    echo "your Docker Compose stack to ensure clean state."
-    echo ""
-    
-    read -p "Enable Docker Compose restart? (y/n): " -n 1 -r
+    echo -n "Enable Telegram notifications? (y/n): "
+    read -n 1 -r
     echo ""
     
     if [[ $REPLY =~ ^[Yy]$ ]]; then
-        sed -i '/^DOCKER_COMPOSE_RESTART=/d' .env 2>/dev/null || true
-        echo "DOCKER_COMPOSE_RESTART=true" >> .env
-        print_success "Docker Compose restart enabled"
+        echo ""
+        echo "To setup Telegram:"
+        echo "  1. Open Telegram, search @BotFather"
+        echo "  2. Send: /newbot"
+        echo "  3. Get your Chat ID from @userinfobot"
+        echo ""
+        
+        echo "Enter Telegram Bot Token:"
+        read -r BOT_TOKEN
+        
+        echo "Enter Telegram Chat ID:"
+        read -r CHAT_ID
+        
+        if [ -n "$BOT_TOKEN" ] && [ -n "$CHAT_ID" ]; then
+            echo "TELEGRAM_BOT_TOKEN=$BOT_TOKEN" >> .env
+            echo "TELEGRAM_CHAT_ID=$CHAT_ID" >> .env
+            print_success "Telegram configured"
+            
+            echo ""
+            echo -n "Test Telegram now? (y/n): "
+            read -n 1 -r
+            echo ""
+            
+            if [[ $REPLY =~ ^[Yy]$ ]]; then
+                TEST_MSG="✅ RPC Monitor installed!"
+                RESPONSE=$(curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" -d chat_id="${CHAT_ID}" -d text="${TEST_MSG}")
+                
+                if echo "$RESPONSE" | grep -q '"ok":true'; then
+                    print_success "Test message sent!"
+                else
+                    print_error "Failed to send test message"
+                fi
+            fi
+        fi
     else
-        sed -i '/^DOCKER_COMPOSE_RESTART=/d' .env 2>/dev/null || true
-        echo "DOCKER_COMPOSE_RESTART=false" >> .env
-        print_warning "Docker Compose restart disabled"
+        print_warning "Telegram disabled"
+    fi
+fi
+
+# Step 6: Docker Compose Restart
+if [ "$DOCKER_COMPOSE_EXISTS" = true ]; then
+    print_step "STEP 6: Docker Compose Restart"
+    
+    CURRENT_DOCKER_RESTART=$(grep "^DOCKER_COMPOSE_RESTART=" .env 2>/dev/null | cut -d '=' -f2)
+    
+    if [ -n "$CURRENT_DOCKER_RESTART" ]; then
+        echo "Docker Compose restart: $CURRENT_DOCKER_RESTART"
+        print_success "Already configured"
+    else
+        echo "Enable Docker Compose restart on RPC failure?"
+        echo ""
+        echo -n "Enable? (y/n): "
+        read -n 1 -r
+        echo ""
+        
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            echo "DOCKER_COMPOSE_RESTART=true" >> .env
+            print_success "Docker restart enabled"
+        else
+            echo "DOCKER_COMPOSE_RESTART=false" >> .env
+            print_warning "Docker restart disabled"
+        fi
     fi
 fi
 
 # Step 7: Cron Job Setup
-print_step "STEP 7: Automatic Monitoring Setup"
+print_step "STEP 7: Automatic Monitoring"
 
-echo -e "${BOLD}Setup automatic RPC monitoring with cron:${NC}"
-echo ""
-
-read -p "Enable automatic monitoring? (y/n): " -n 1 -r
-echo ""
-
-if [[ $REPLY =~ ^[Yy]$ ]]; then
-    echo ""
-    echo "Select check frequency:"
-    echo "  1) Every 5 minutes  (recommended)"
-    echo "  2) Every 10 minutes"
-    echo "  3) Every 15 minutes"
-    echo "  4) Every 30 minutes"
-    echo "  5) Every hour"
-    echo "  6) Custom"
-    echo ""
-    read -p "Enter choice (1-6): " -n 1 -r
-    echo ""
-    
-    case $REPLY in
-        1) CRON_SCHEDULE="*/5 * * * *" ;;
-        2) CRON_SCHEDULE="*/10 * * * *" ;;
-        3) CRON_SCHEDULE="*/15 * * * *" ;;
-        4) CRON_SCHEDULE="*/30 * * * *" ;;
-        5) CRON_SCHEDULE="0 * * * *" ;;
-        6)
-            echo ""
-            echo "Enter custom cron schedule (e.g., */5 * * * *):"
-            read -p "> " CRON_SCHEDULE
-            ;;
-        *) CRON_SCHEDULE="*/5 * * * *" ;;
-    esac
-    
-    # Setup cron job
-    CRON_CMD="$CRON_SCHEDULE cd $INSTALL_DIR && ./rpc_health_check.sh >> rpc_health_check.log 2>&1"
-    
-    # Remove existing cron job if any
-    (crontab -l 2>/dev/null | grep -v "rpc_health_check.sh") | crontab - 2>/dev/null || true
-    
-    # Add new cron job
-    (crontab -l 2>/dev/null; echo "$CRON_CMD") | crontab -
-    
-    print_success "Cron job configured: $CRON_SCHEDULE"
+if crontab -l 2>/dev/null | grep -q "rpc_health_check.sh"; then
+    echo "Automatic monitoring already configured"
+    print_success "Cron job exists"
 else
-    print_warning "Automatic monitoring not enabled"
+    echo "Setup automatic RPC monitoring"
+    echo ""
+    echo -n "Enable automatic monitoring? (y/n): "
+    read -n 1 -r
+    echo ""
+    
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        echo ""
+        echo "Select check frequency:"
+        echo "  1) Every 5 minutes  (recommended)"
+        echo "  2) Every 10 minutes"
+        echo "  3) Every 15 minutes"
+        echo "  4) Every 30 minutes"
+        echo "  5) Every hour"
+        echo ""
+        echo -n "Choice (1-5): "
+        read -n 1 -r
+        echo ""
+        
+        case $REPLY in
+            1) CRON_SCHEDULE="*/5 * * * *" ;;
+            2) CRON_SCHEDULE="*/10 * * * *" ;;
+            3) CRON_SCHEDULE="*/15 * * * *" ;;
+            4) CRON_SCHEDULE="*/30 * * * *" ;;
+            5) CRON_SCHEDULE="0 * * * *" ;;
+            *) CRON_SCHEDULE="*/5 * * * *" ;;
+        esac
+        
+        CRON_CMD="$CRON_SCHEDULE cd $INSTALL_DIR && ./rpc_health_check.sh >> rpc_health_check.log 2>&1"
+        
+        (crontab -l 2>/dev/null | grep -v "rpc_health_check.sh"; echo "$CRON_CMD") | crontab -
+        
+        print_success "Cron configured: $CRON_SCHEDULE"
+    else
+        print_warning "Auto-monitoring disabled"
+    fi
 fi
 
 # Final Summary
 print_step "Installation Complete! 🎉"
 
-echo -e "${GREEN}${BOLD}✓ RPC Health Check Monitor successfully installed!${NC}"
+echo -e "${GREEN}${BOLD}✓ RPC Health Check Monitor installed!${NC}"
 echo ""
 
-# Display configuration summary
+# Read final config
 ETH_RPC=$(grep "^ETHEREUM_RPC_URL=" .env 2>/dev/null | cut -d '=' -f2)
 BEACON=$(grep "^CONSENSUS_BEACON_URL=" .env 2>/dev/null | cut -d '=' -f2)
-TELEGRAM_ENABLED=$(grep "^TELEGRAM_BOT_TOKEN=" .env 2>/dev/null | cut -d '=' -f2)
+TELEGRAM_TOKEN=$(grep "^TELEGRAM_BOT_TOKEN=" .env 2>/dev/null | cut -d '=' -f2)
 DOCKER_RESTART=$(grep "^DOCKER_COMPOSE_RESTART=" .env 2>/dev/null | cut -d '=' -f2)
 
-echo -e "${CYAN}Configuration Summary:${NC}"
-echo "  ✓ Installation: $INSTALL_DIR"
-echo "  ✓ Ethereum RPC: ${ETH_RPC:-Not set}"
-echo "  ✓ Beacon: ${BEACON:-Not set}"
-echo "  ✓ Telegram: $([ -n "$TELEGRAM_ENABLED" ] && echo "Enabled" || echo "Disabled")"
-echo "  ✓ Docker restart: $([ "$DOCKER_RESTART" = "true" ] && echo "Enabled" || echo "Disabled")"
-echo "  ✓ Auto-monitoring: $(crontab -l 2>/dev/null | grep -q "rpc_health_check.sh" && echo "Enabled" || echo "Disabled")"
+echo "Configuration Summary:"
+echo "  • Location: $INSTALL_DIR"
+echo "  • ETH RPC: ${ETH_RPC:-Not set}"
+echo "  • Beacon: ${BEACON:-Not set}"
+echo "  • Telegram: $([ -n "$TELEGRAM_TOKEN" ] && echo "Enabled" || echo "Disabled")"
+echo "  • Docker restart: $([ "$DOCKER_RESTART" = "true" ] && echo "Enabled" || echo "Disabled")"
+echo "  • Auto-monitor: $(crontab -l 2>/dev/null | grep -q "rpc_health_check.sh" && echo "Enabled" || echo "Disabled")"
 echo ""
 
-echo -e "${CYAN}Quick Commands:${NC}"
-echo "  • Monitor logs:    tail -f rpc_health_check.log"
-echo "  • Manual check:    ./rpc_health_check.sh"
-echo "  • View cron:       crontab -l"
-echo "  • Edit config:     nano .env"
+echo "Quick Commands:"
+echo "  • View logs:     tail -f rpc_health_check.log"
+echo "  • Manual check:  ./rpc_health_check.sh"
+echo "  • Edit config:   nano .env"
 echo ""
 
 echo -e "${GREEN}${BOLD}Happy monitoring! 🚀${NC}"
